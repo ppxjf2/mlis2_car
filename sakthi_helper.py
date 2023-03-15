@@ -140,7 +140,7 @@ def get_cleaned_data(dir_path, format_change_str, id_start_from=15000, test_mode
     all_files = [f for f in os.listdir(dir_path) if os.path.isfile(os.path.join(dir_path, f))]
     print("Total files in the dir : ", len(all_files))
 
-    id = 15000
+    id = id_start_from
     old_format, new_format = format_change_str.split("-")
     new_dir_path = os.path.dirname(dir_path) + "\\cleaned_{}".format(os.path.basename(dir_path))
     new_path_list = []
@@ -337,6 +337,85 @@ def move_corrupted_files(root_dir, data_dirs=["training_data"], ignore_dirs=["^\
     print("Total moved files count : ", total_move_count)
 
     return all_corrupted_files
+
+def rename_files(root_dir, rename_df, rename_cols=["speed", "angle"], path_split_filters=[(-3,"mlis2_car"), (-2,"new_data")], ignore_dirs=["^\..*", "corrupted files"],
+                           filter_extensions=[".png", ".jpg"], test_mode=True, verbose=False):
+
+    total_source_file_count = 0
+    filtered_source_file_count = 0
+    total_copy_count = 0
+    for dir_path, sub_dirs, file_names in os.walk(root_dir):
+
+        if verbose:
+            print_oswalk_details(dir_path, sub_dirs, file_names)
+
+        dir_name = os.path.basename(dir_path)
+
+        if any(re.match(pattern, dir_name) for pattern in ignore_dirs):
+            print("Skipping directory ", dir_path)
+            sub_dirs.clear()
+            print("skipping all sub directories - ", sub_dirs)
+            continue
+
+
+        file_count = 0
+        for file_name in file_names:
+            file_count += 1
+            total_source_file_count += 1
+            file_path = os.path.join(dir_path, file_name)
+            # print("file path : ", file_path)
+            path_before_ext, file_ext = os.path.splitext(file_path)
+
+            if file_ext in filter_extensions:
+                # print("filtered file : ", file_path)
+                path_splits = file_path.split(os.sep)
+                # print(path_splits)
+                file_name = path_splits[-1]
+
+                dir_filter_out = execute_path_split_filter(path_splits, path_split_filters)
+
+                if dir_filter_out:
+                    id, ext = file_name.split(".")
+
+                    if int(id) in rename_df["image_id"].values:
+                        filtered_source_file_count += 1
+
+                        src_path = file_path
+                        dest_dir = root_dir + copy_dir
+                        # print(dest_dir)
+                        pathlib.Path(dest_dir).mkdir(parents=True, exist_ok=True)
+
+                        image_id_match_condition = rename_df["image_id"] == int(id)
+
+                        rename_params = []
+                        rename_params = rename_df.loc[image_id_match_condition, rename_cols].values[0]
+                        new_file_name = id
+                        for i, param in enumerate(rename_params):
+                            new_file_name += "_" + rename_cols[i] + "-" + str(param)
+                        dest_path = dest_dir + "\\" + new_file_name + ".{}".format(ext)
+                        # print(dest_path)
+
+                        if not (os.path.exists(dest_path)):
+                            if file_count < 10:
+                                print("SRC : ", src_path)
+                                print("DEST : ", dest_path)
+                            if not test_mode:
+                                shutil.copy2(src_path, dest_path)
+                                print("Copied")
+                                total_copy_count += 1
+                        else:
+                            print("{} File already exists. So not copied.")
+
+                if verbose:
+                    if file_count < 10:
+                        print_file_details(dir_path, file_name)
+                    else:
+                        continue
+
+    print("All relevant files are copied successfully into respective folders")
+    print("total source files count : ", total_source_file_count)
+    print("total filtered source files count : ", filtered_source_file_count)
+    print("total_copy_count : ", total_copy_count)
 
 def copy_files_dir_to_dir(root_dir, rename_df, rename_cols=["speed", "angle"], copy_dir="\\data\\all_data", path_split_filters=[(-2,"training_data"), (-1,"training_data")], ignore_dirs=["^\..*", "corrupted files"],
                            filter_extensions=[".png", ".jpg"], test_mode=True, verbose=False):
