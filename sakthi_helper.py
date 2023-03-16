@@ -338,7 +338,8 @@ def move_corrupted_files(root_dir, data_dirs=["training_data"], ignore_dirs=["^\
 
     return all_corrupted_files
 
-def rename_files(root_dir, rename_df, rename_cols=["speed", "angle"], path_split_filters=[(-3,"mlis2_car"), (-2,"new_data")], ignore_dirs=["^\..*", "corrupted files"],
+def rename_files(root_dir, rename_df, rename_cols=["speed", "angle"], data_dirs=["training_data"],
+                 path_split_filters=[(-3,"mlis2_car"), (-2,"new_data")], ignore_dirs=["^\..*", "corrupted files"],
                            filter_extensions=[".png", ".jpg"], test_mode=True, verbose=False):
 
     total_source_file_count = 0
@@ -351,12 +352,19 @@ def rename_files(root_dir, rename_df, rename_cols=["speed", "angle"], path_split
 
         dir_name = os.path.basename(dir_path)
 
+        # ----------- filtering out directories that match the ignore_dirs parameter --------------
         if any(re.match(pattern, dir_name) for pattern in ignore_dirs):
             print("Skipping directory ", dir_path)
             sub_dirs.clear()
             print("skipping all sub directories - ", sub_dirs)
             continue
 
+        # ------------ filtering only the directries in data_dir parameter -------------------------
+        for dir in data_dirs:
+            if dir_name != dir:
+                print("Checking if its a data directory")
+                print("Skipping directory ", dir_path)
+                continue
 
         file_count = 0
         for file_name in file_names:
@@ -417,7 +425,9 @@ def rename_files(root_dir, rename_df, rename_cols=["speed", "angle"], path_split
     print("total filtered source files count : ", filtered_source_file_count)
     print("total_copy_count : ", total_copy_count)
 
-def copy_files_dir_to_dir(root_dir, rename_df, rename_cols=["speed", "angle"], copy_dir="\\data\\all_data", path_split_filters=[(-2,"training_data"), (-1,"training_data")], ignore_dirs=["^\..*", "corrupted files"],
+def copy_files_dir_to_dir(root_dir, rename_df, rename_cols=["speed", "angle"], data_dirs=["training_data"],
+                          copy_dir="\\data\\all_data", path_split_filters=[(-2,"training_data"), (-1,"training_data")],
+                          ignore_dirs=["^\..*", "corrupted files"],
                            filter_extensions=[".png", ".jpg"], test_mode=True, verbose=False):
 
     total_source_file_count = 0
@@ -430,12 +440,19 @@ def copy_files_dir_to_dir(root_dir, rename_df, rename_cols=["speed", "angle"], c
 
         dir_name = os.path.basename(dir_path)
 
+        # ----------- filtering out directories that match the ignore_dirs parameter --------------
         if any(re.match(pattern, dir_name) for pattern in ignore_dirs):
             print("Skipping directory ", dir_path)
             sub_dirs.clear()
             print("skipping all sub directories - ", sub_dirs)
             continue
 
+        # ------------ filtering only the directries in data_dir parameter -------------------------
+        for dir in data_dirs:
+            if dir_name != dir:
+                print("Checking if its a data directory")
+                print("Skipping directory ", dir_path)
+                continue
 
         file_count = 0
         for file_name in file_names:
@@ -497,7 +514,9 @@ def copy_files_dir_to_dir(root_dir, rename_df, rename_cols=["speed", "angle"], c
     print("total_copy_count : ", total_copy_count)
 
 
-def copy_files_one_to_many(root_dir, grouped_ids, rename_df, copy_dir="\\data", path_split_filters=[(-2,"training_data"), (-1,"training_data")], ignore_dirs=["^\..*", "corrupted files"],
+def copy_files_one_to_many(root_dir, grouped_ids, rename_df, data_dirs=["training_data"], copy_dir="\\data",
+                           path_split_filters=[(-3,"training_data"), (-2,"training_data")],
+                           ignore_dirs=["^\..*", "corrupted files"],
                            filter_extensions=[".png", ".jpg"], test_mode=True, verbose=False):
 
     total_source_file_count = 0
@@ -510,11 +529,19 @@ def copy_files_one_to_many(root_dir, grouped_ids, rename_df, copy_dir="\\data", 
 
         dir_name = os.path.basename(dir_path)
 
+        # ----------- filtering out directories that match the ignore_dirs parameter --------------
         if any(re.match(pattern, dir_name) for pattern in ignore_dirs):
             print("Skipping directory ", dir_path)
             sub_dirs.clear()
             print("skipping all sub directories - ", sub_dirs)
             continue
+
+        # ------------ filtering only the directries in data_dir parameter -------------------------
+        for dir in data_dirs:
+            if dir_name != dir:
+                print("Checking if its a data directory")
+                print("Skipping directory ", dir_path)
+                continue
 
         for group, values in grouped_ids.items():
             for category, filtered_ids in values.items():
@@ -577,7 +604,9 @@ def copy_files_one_to_many(root_dir, grouped_ids, rename_df, copy_dir="\\data", 
     print("total_copy_count : ", total_copy_count)
 
 
-def create_combined_all_class_dataset(root_dir, df, groups=["speed", "angle"], copy_dir="\\data", ignore_dirs=["^\..*", "corrupted files"], ignore_files=["3884"],
+def create_combined_all_class_dataset(root_dir, rename_df, grouped_by=["speed", "angle"], data_dirs=["new_data_part_3_grouped"],
+                                      copy_dir="\\data", path_split_filters=[(-2,"training_data"), (-3,"training_data")],
+                                      ignore_dirs=["^\..*", "corrupted files"], ignore_files=["3884"],
                                       filter_extensions=[".png", ".jpg"], test_mode=True, verbose=False):
     total_file_count = 0
     total_copy_count = 0
@@ -589,11 +618,19 @@ def create_combined_all_class_dataset(root_dir, df, groups=["speed", "angle"], c
 
         dir_name = os.path.basename(dir_path)
 
+        # ----------- filtering out directories that match the ignore_dirs parameter --------------
         if any(re.match(pattern, dir_name) for pattern in ignore_dirs):
             print("Skipping directory ", dir_path)
             sub_dirs.clear()
             print("skipping all sub directories - ", sub_dirs)
             continue
+
+        # ------------ filtering only the directries in data_dir parameter -------------------------
+        for dir in data_dirs:
+            if dir_name != dir:
+                print("Checking if its a data directory")
+                print("Skipping directory ", dir_path)
+                continue
 
         file_count = 0
         for file_name in file_names:
@@ -607,31 +644,39 @@ def create_combined_all_class_dataset(root_dir, df, groups=["speed", "angle"], c
                 path_splits = file_path.split(os.sep)
                 # print(path_splits)
                 file_name = path_splits[-1]
-                file_name_without_ext = file_name.split(".")[0]
+                file_name_without_ext = ".".join(file_name.split(".")[:-1])
+                # print(file_name_without_ext)
+                dir_filter_out = execute_path_split_filter(path_splits, path_split_filters)
 
-                if "training_data" in path_splits[-2] and "training_data" in path_splits[
-                    -3] and file_name_without_ext not in ignore_files:
+                if dir_filter_out and file_name_without_ext not in ignore_files:
 
                     ##-------- filtered files ---------------------
                     total_file_count += 1
-                    id, ext = file_name.split(".")
+                    ext = file_name.split(".")[-1]
+                    id = file_name_without_ext.split(".")[0]
+                    image_labels = "_".join(file_name_without_ext.split("_")[1:])
+                    # print(image_labels)
 
                     src_path = file_path
                     dest_dir = root_dir + copy_dir + "\\"
-                    for group in groups:
+                    for group in grouped_by:
                         dest_dir += "{}_".format(group)
                     dest_dir += "grouped_data\\"
 
-                    image_id_match_condition = df["image_id"] == int(id)
+                    if rename_df:
+                        image_id_match_condition = rename_df["image_id"] == int(id)
 
-                    rename_params = []
-                    rename_params = df.loc[image_id_match_condition, groups].values[0]
-                    new_file_name = id
-                    for i, param in enumerate(rename_params):
-                        dest_dir += groups[i] + "-" + str(param)
-                        if i < len(rename_params)-1:
-                            dest_dir += "_"
-                        new_file_name += "_" + groups[i] + "-" + str(param)
+                        rename_params = []
+                        rename_params = rename_df.loc[image_id_match_condition, grouped_by].values[0]
+                        new_file_name = id
+                        for i, param in enumerate(rename_params):
+                            dest_dir += grouped_by[i] + "-" + str(param)
+                            if i < len(rename_params)-1:
+                                dest_dir += "_"
+                            new_file_name += "_" + grouped_by[i] + "-" + str(param)
+                    else:
+                        dest_dir += "{}".format(image_labels)
+                        new_file_name = file_name_without_ext
 
                     # print(dest_dir)
                     pathlib.Path(dest_dir).mkdir(parents=True, exist_ok=True)
