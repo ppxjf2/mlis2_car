@@ -104,8 +104,12 @@ def get_grouped_ids_from_df(df, grouping_cols=["speed", "angle"], id_col="image_
 def execute_path_split_filter(path_splits, path_split_filters):
     filter_out = False
     for i, filter in enumerate(path_split_filters):
-        if (filter_out or i == 0) and filter[1] in path_splits[filter[0]]:
+        # print(i, filter_out, filter[1], path_splits[filter[0]])
+        if (filter_out or i == 0) and (filter[1] == path_splits[filter[0]]):
+            # print("---", filter[1], path_splits[filter[0]])
             filter_out = True
+        else:
+            filter_out = False
 
     return filter_out
 
@@ -364,6 +368,8 @@ def rename_files(root_dir, rename_df, rename_cols=["speed", "angle"], data_dirs=
             if dir_name != dir:
                 print("Checking if its a data directory")
                 print("Skipping directory ", dir_path)
+                # sub_dirs.clear()
+                # print("Skipping all sub directories - ", sub_dirs)
                 continue
 
         file_count = 0
@@ -425,7 +431,7 @@ def rename_files(root_dir, rename_df, rename_cols=["speed", "angle"], data_dirs=
     print("total filtered source files count : ", filtered_source_file_count)
     print("total_copy_count : ", total_copy_count)
 
-def copy_files_dir_to_dir(root_dir, rename_df, rename_cols=["speed", "angle"], data_dirs=["training_data"],
+def copy_files_dir_to_dir(root_dir, rename_df=None, rename_cols=["speed", "angle"], data_dirs=["training_data"],
                           copy_dir="\\data\\all_data", path_split_filters=[(-2,"training_data"), (-1,"training_data")],
                           ignore_dirs=["^\..*", "corrupted files"],
                            filter_extensions=[".png", ".jpg"], test_mode=True, verbose=False):
@@ -448,11 +454,14 @@ def copy_files_dir_to_dir(root_dir, rename_df, rename_cols=["speed", "angle"], d
             continue
 
         # ------------ filtering only the directries in data_dir parameter -------------------------
-        for dir in data_dirs:
-            if dir_name != dir:
-                print("Checking if its a data directory")
-                print("Skipping directory ", dir_path)
-                continue
+        if data_dirs:
+            for dir in data_dirs:
+                if dir_name != dir:
+                    print("Checking if its a data directory")
+                    print("Skipping directory ", dir_path)
+                    # sub_dirs.clear()
+                    # print("Skipping all sub directories - ", sub_dirs)
+                    continue
 
         file_count = 0
         for file_name in file_names:
@@ -467,40 +476,50 @@ def copy_files_dir_to_dir(root_dir, rename_df, rename_cols=["speed", "angle"], d
                 path_splits = file_path.split(os.sep)
                 # print(path_splits)
                 file_name = path_splits[-1]
+                file_name_without_ext = ".".join(file_name.split(".")[:-1])
 
+                # print(path_splits)
                 dir_filter_out = execute_path_split_filter(path_splits, path_split_filters)
 
                 if dir_filter_out:
-                    id, ext = file_name.split(".")
+                    # print("FILTERED DIR - {}".format(path_splits))
+                    ext = file_name.split(".")[-1]
+                    id = file_name_without_ext.split(".")[0]
+                    image_labels = "_".join(file_name_without_ext.split("_")[1:])
 
-                    if int(id) in rename_df["image_id"].values:
-                        filtered_source_file_count += 1
+                    filtered_source_file_count += 1
 
-                        src_path = file_path
-                        dest_dir = root_dir + copy_dir
-                        # print(dest_dir)
-                        pathlib.Path(dest_dir).mkdir(parents=True, exist_ok=True)
+                    src_path = file_path
+                    dest_dir = root_dir + copy_dir
+                    # print(dest_dir)
+                    pathlib.Path(dest_dir).mkdir(parents=True, exist_ok=True)
 
-                        image_id_match_condition = rename_df["image_id"] == int(id)
+                    if rename_df:
+                        if int(id) in rename_df.get("image_id").values:
+                            image_id_match_condition = rename_df["image_id"] == int(id)
 
-                        rename_params = []
-                        rename_params = rename_df.loc[image_id_match_condition, rename_cols].values[0]
-                        new_file_name = id
-                        for i, param in enumerate(rename_params):
-                            new_file_name += "_" + rename_cols[i] + "-" + str(param)
-                        dest_path = dest_dir + "\\" + new_file_name + ".{}".format(ext)
-                        # print(dest_path)
+                            rename_params = []
+                            rename_params = rename_df.loc[image_id_match_condition, rename_cols].values[0]
+                            new_file_name = id
+                            for i, param in enumerate(rename_params):
+                                new_file_name += "_" + rename_cols[i] + "-" + str(param)
+                    else:
+                        # dest_dir += "{}".format(image_labels)
+                        new_file_name = file_name_without_ext
 
-                        if not (os.path.exists(dest_path)):
-                            if file_count < 10:
-                                print("SRC : ", src_path)
-                                print("DEST : ", dest_path)
-                            if not test_mode:
-                                shutil.copy2(src_path, dest_path)
-                                print("Copied")
-                                total_copy_count += 1
-                        else:
-                            print("{} File already exists. So not copied.")
+                    dest_path = dest_dir + "\\" + new_file_name + ".{}".format(ext)
+                    # print(dest_path)
+
+                    if not (os.path.exists(dest_path)):
+                        if file_count < 10:
+                            print("SRC : ", src_path)
+                            print("DEST : ", dest_path)
+                        if not test_mode:
+                            shutil.copy2(src_path, dest_path)
+                            print("Copied")
+                            total_copy_count += 1
+                    else:
+                        print("{} File already exists. So not copied.")
 
                 if verbose:
                     if file_count < 10:
@@ -704,6 +723,35 @@ def create_combined_all_class_dataset(root_dir, rename_df, grouped_by=["speed", 
     print("File Count : {}".format(total_file_count))
     print("Copy Count : {}".format(total_copy_count))
     print("All relevant files are renamed and copied successfully into respective class folders")
+
+
+def get_csv_from_file_names(dir_path,
+                            file_name_column_map={"image_id": [("_",0)], "speed": [("_",1),("-",-1)], "angle": [("_",2),("-",-1)]},
+                            csv_path="/data/new_cleaned_data_training_norm.csv", test_mode=True):
+
+    df = pd.DataFrame()
+    files = os.listdir(dir_path)
+    print("Number of files: ", len(files))
+
+    for i, file_name in enumerate(files):
+        ext = file_name.split(".")[-1]
+        file_name_without_ext = ".".join(file_name.split(".")[:-1])
+
+        for key,val in file_name_column_map.items():
+            column_val = file_name_without_ext
+            for filter in val:
+                # print(filter)
+                column_val = column_val.split(filter[0])[filter[1]]
+            df.loc[i,key] = column_val
+            # print(i, key, column_val)
+
+    if not test_mode:
+        df.to_csv(csv_path, index=False)
+
+    return df
+
+
+
 
 
 ##------------------- Modelling  -------------------------------------------------------------------------------------------------
