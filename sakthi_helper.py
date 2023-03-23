@@ -2,18 +2,21 @@ import os
 import pathlib
 import re
 import shutil
+from typing import List
 
 import cv2
 import numpy as np
 import pandas as pd
+
 from keras.applications import VGG16, VGG19, ResNet50, InceptionV3, InceptionResNetV2, Xception, MobileNet, DenseNet121, \
     NASNetMobile, EfficientNetB0
 from keras.layers import BatchNormalization
 from keras_preprocessing.image import img_to_array
 from matplotlib import pyplot as plt
-from tensorflow.python.keras import Sequential
-from tensorflow.python.keras.layers import Conv2D, Flatten, Dropout, Dense, MaxPooling2D
-from tensorflow.python.keras.saving.model_config import model_from_yaml
+from keras import Sequential
+from keras.layers import Conv2D, Flatten, Dropout, Dense, MaxPooling2D
+from keras.models import Model
+from keras.saving.model_config import model_from_json
 
 
 def atof(text):
@@ -750,16 +753,36 @@ def get_csv_from_file_names(dir_path,
 
     return df
 
+def combine_csvs(csv_paths: List[str], output_csv_path: str, sort_by_col: str, test_mode=True) -> pd.DataFrame:
+    # Read in all CSVs as dataframes
+    dfs = [pd.read_csv(csv) for csv in csv_paths]
+    print(dfs[0].columns)
+    print(dfs[1].columns)
 
+    # Validate if all input CSVs have the same columns
+    if not all(set(dfs[0].columns) == set(df.columns) for df in dfs):
+        raise ValueError("All CSVs must have the same columns")
+
+    # Combine dataframes into a single dataframe
+    combined_df = pd.concat(dfs, ignore_index=True)
+
+    # Sort by specified column
+    combined_df.sort_values(by=sort_by_col, inplace=True)
+
+    # Write combined dataframe to output CSV
+    if not test_mode:
+        combined_df.to_csv(output_csv_path, index=False)
+
+
+    return combined_df
 
 
 
 ##------------------- Modelling  -------------------------------------------------------------------------------------------------
 
 def create_CNN_model(input_shape, hidden_layers, pretrained_model=None, num_non_trainable_layers=1,
-                     output_layer={'BC': [1, 'sigmoid', 'binary_crossentropy'],
-                                   'MC': [17, 'softmax', 'categorical_crossentropy']},
-                     init='normal', optimize='adam', metrics=['accuracy', 'mse']):
+                     output_layer=None,
+                     init='normal', optimize='adam'):
     if pretrained_model:
         if pretrained_model == 'vgg16':
             base_model = VGG16(weights='imagenet', include_top=False, input_shape=input_shape)
@@ -804,8 +827,8 @@ def create_CNN_model(input_shape, hidden_layers, pretrained_model=None, num_non_
     r = 0.2
 
     for i, layer in enumerate(hidden_layers):
-        #         print(layer)
-        #         print(type(layer))
+        # print(layer)
+        # print(type(layer))
         layer = str(layer)
         if i == 0:
             if '_' in layer:
@@ -873,10 +896,7 @@ def create_CNN_model(input_shape, hidden_layers, pretrained_model=None, num_non_
 
         elif 'D' in layer:
             if '_' in layer:
-                params = layer.split('_')
-                for i, param in enumerate(params):
-                    if i == 1:
-                        r = int("".join(filter(str.isdigit, param)))
+                r = float(layer.split('_')[-1])
 
             model.add(Dropout(r))
 
@@ -884,12 +904,21 @@ def create_CNN_model(input_shape, hidden_layers, pretrained_model=None, num_non_
 
             model.add(Dense(int(layer), kernel_initializer=init, activation='relu'))
 
-    loss_functions = []
-    for layer, params in output_layer.items():
-        model.add(Dense(params[0], activation=params[1], kernel_initializer=init))
-        loss_functions.append(params[2])
 
-    model.compile(loss=loss_functions, optimizer=optimize, metrics=metrics)
+    model_outputs = []
+    loss_functions = {}
+    out_metrics = {}
+    for output_name, params in output_layer.items():
+        out_layer = Dense(params[0], activation=params[1], kernel_initializer=init, name=output_name)(model.output)
+        model_outputs.append(out_layer)
+        loss_functions[output_name] = params[2]
+        out_metrics[output_name] = params[2]
+
+
+    # Define the model with the input layer and output_layer
+    model = Model(inputs=model.inputs, outputs=model_outputs)
+
+    model.compile(loss=loss_functions, optimizer=optimize, metrics=out_metrics)
 
     return model
 
