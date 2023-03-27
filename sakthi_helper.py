@@ -11,12 +11,14 @@ import pandas as pd
 from keras.applications import VGG16, VGG19, ResNet50, InceptionV3, InceptionResNetV2, Xception, MobileNet, DenseNet121, \
     NASNetMobile, EfficientNetB0
 from keras.layers import BatchNormalization
-from keras_preprocessing.image import img_to_array
+# from tensorflow.python.keras.  keras_preprocessing.image import img_to_array
+
 from matplotlib import pyplot as plt
 from keras import Sequential
 from keras.layers import Conv2D, Flatten, Dropout, Dense, MaxPooling2D
 from keras.models import Model
-from keras.saving.model_config import model_from_json
+from tensorflow.keras.models import model_from_json
+
 
 
 def atof(text):
